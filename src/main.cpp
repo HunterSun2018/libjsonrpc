@@ -24,11 +24,18 @@ test_task_void(http_client_ptr client)
 
     co_return;
 }
+// POST /test HTTP/1.1
+// Host: foo.example
+// Content-Type: application/x-www-form-urlencoded
+// Content-Length: 27
+
+// field1=value1&field2=value2
+//curl -X POST -H "Content-Type: application/json" --data '[{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}]' "https://client.testnet.diem.com/"
 
 co_helper::Task<string>
 test_http_post(http_client_ptr client)
 {
-    string ret = co_await client->aw_get("https://cn.bing.com/");
+    string ret = co_await client->co_post("https://client.testnet.diem.com/", "application/json", R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
 
     cout << " test_task_void ends. " << endl;
 
@@ -41,7 +48,9 @@ void test()
 
     // test_task_void(client);
 
-    auto ret = test_http_client(client);
+    // auto ret = test_http_client(client);
+
+    auto ret = test_http_post(client);
 
     client->async_run();
 
@@ -50,10 +59,26 @@ void test()
     cout << "co_return result : " << ret.get() << endl;
 }
 
-//curl -X POST -H "Content-Type: application/json" --data '[{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}]' "https://client.testnet.diem.com/"
+// Utilize the infrastructure we have established.
+std::future<int> compute()
+{
+    int a = co_await std::async([]
+                                { return 6; });
+    int b = co_await std::async([]
+                                { return 7; });
+    co_return a *b;
+}
+
+std::future<void> fail()
+{
+    throw std::runtime_error("bleah");
+    co_return;
+}
 
 int main(int argc, char *argv[])
 {
+    std::cout << compute().get() << '\n';
+
     try
     {
         jsonrpc::client jr_client;
@@ -61,6 +86,8 @@ int main(int argc, char *argv[])
         jr_client.call(1, "get_metadata", 1);
 
         test();
+
+        fail().get();
     }
     catch (const std::exception &e)
     {

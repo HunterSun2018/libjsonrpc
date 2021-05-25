@@ -107,13 +107,13 @@ awaitable<string> aw_http_get(
     beast::flat_buffer buf;
 
     // Declare a container to hold the response
-    http::response<http::dynamic_body> res;
+    http::response<http::string_body> res;
 
     // Receive the HTTP response
     co_await http::async_read(stream, buf, res, use_awaitable);
 
     std::ostringstream data;
-    data << res;
+    data << res.body();
 
     // // Set the timeout.
     // beast::get_lowest_layer(stream).expires_after(expired_time);
@@ -155,11 +155,11 @@ public:
     }
 
     virtual HttpPost
-    co_post(std::string_view url, std::string_view content) override
+    co_post(std::string_view url, std::string_view content_type, std::string_view content) override
     {
         auto [protocol, host, path] = parse_url(url);
 
-        return HttpPost(*this, host, protocol == "https" ? "443" : "80", path, 11, content);
+        return HttpPost(*this, host, protocol == "https" ? "443" : "80", path, 11, content_type, content);
     }
 
     void async_run()
@@ -167,9 +167,9 @@ public:
         // boost::asio::signal_set signals(_io_ctx, SIGINT, SIGTERM);
         // signals.async_wait([&](auto, auto) { _io_ctx.stop(); });
 
-        thread([this]() {
-            _io_ctx.run();
-        }).detach();
+        thread([this]()
+               { _io_ctx.run(); })
+            .detach();
     }
 
     void sync_run()
@@ -188,11 +188,6 @@ private:
     ssl::context _ssl_ctx{ssl::context::tlsv12_client};
 };
 
-std::shared_ptr<HttpClient> HttpClient::create()
-{
-    return std::make_shared<HttpClientImp>();
-}
-
 void HttpClient::HttpGet::operator()()
 {
     auto client = static_cast<HttpClientImp *>(&_client);
@@ -204,7 +199,8 @@ void HttpClient::HttpGet::operator()()
     // Launch the asynchronous operation
     co_spawn(client->io_ctx(),
              aw_http_get(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
-             [this](std::exception_ptr eptr, std::string response) {
+             [this](std::exception_ptr eptr, std::string response)
+             {
                  if (eptr)
                  {
                      std::rethrow_exception(eptr);
@@ -222,16 +218,21 @@ void HttpClient::HttpPost::operator()()
 {
     auto client = static_cast<HttpClientImp *>(&_client);
 
-    http::request<http::string_body> req{http::verb::get, _target.data(), _version};
+    http::request<http::string_body> req{http::verb::post, _target.data(), _version};
     req.set(http::field::host, _host.data());
     req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-    req.set(http::field::content_length, to_string(_content.length()));
-    req.set(http::field::body, _content);
+    req.set(http::field::content_type, _content_type);
+    req.set(http::field::content_length, to_string(_content.length()));    
+    req.body() = _content;
+    req.prepare_payload();
+
+    cout << req << endl;
 
     // Launch the asynchronous operation
     co_spawn(client->io_ctx(),
              aw_http_get(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
-             [this](std::exception_ptr eptr, std::string response) {
+             [this](std::exception_ptr eptr, std::string response)
+             {
                  if (eptr)
                  {
                      std::rethrow_exception(eptr);
@@ -243,4 +244,9 @@ void HttpClient::HttpPost::operator()()
                  // resume promise type
                  _co_handle.resume();
              });
+}
+
+std::shared_ptr<HttpClient> HttpClient::create()
+{
+    return std::make_shared<HttpClientImp>();
 }
