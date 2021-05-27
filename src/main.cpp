@@ -8,7 +8,7 @@ using namespace std;
 co_helper::Task<string>
 test_http_client(http_client_ptr client)
 {
-    string ret = co_await client->aw_get("https://cn.bing.com/?mkt=zh-CN"); // /?mkt=zh-CN
+    string ret = co_await client->co_get("https://cn.bing.com/?mkt=zh-CN"); // /?mkt=zh-CN
 
     cout << "The http Get request is done. " << endl;
 
@@ -18,9 +18,9 @@ test_http_client(http_client_ptr client)
 co_helper::Task<void>
 test_task_void(http_client_ptr client)
 {
-    string ret = co_await client->aw_get("https://cn.bing.com/");
+    string ret = co_await client->co_get("https://cn.bing.com/");
 
-    cout << " test_task_void ends. " << endl;
+    cout << " http get response : " << ret << endl;
 
     co_return;
 }
@@ -28,18 +28,18 @@ test_task_void(http_client_ptr client)
 // Host: foo.example
 // Content-Type: application/x-www-form-urlencoded
 // Content-Length: 27
-
 // field1=value1&field2=value2
+
 //curl -X POST -H "Content-Type: application/json" --data '[{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}]' "https://client.testnet.diem.com/"
 
 co_helper::Task<string>
 test_http_post(http_client_ptr client)
 {
-    string ret = co_await client->co_post("https://client.testnet.diem.com/", "application/json", R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
+    string response = co_await client->co_post("https://client.testnet.diem.com/", "application/json", R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
+    
+    cout << " http post response : " << response << endl;
 
-    cout << " test_task_void ends. " << endl;
-
-    co_return ret;
+    co_return response;
 }
 
 void test()
@@ -52,11 +52,12 @@ void test()
 
     auto ret = test_http_post(client);
 
-    client->async_run();
+    // client->async_run();
+    // getchar();
 
-    getchar();
+    client->sync_run();
 
-    cout << "co_return result : " << ret.get() << endl;
+    cout << "test finished." << endl;
 }
 
 // Utilize the infrastructure we have established.

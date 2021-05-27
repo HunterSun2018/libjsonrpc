@@ -56,7 +56,7 @@ auto parse_url(std::string_view uri_view)
     return make_tuple<>(protocol, host, path);
 }
 
-awaitable<string> aw_http_get(
+awaitable<string> send_http_request(
     string_view host,
     string_view port,
     //string_view target,
@@ -147,7 +147,7 @@ public:
     }
 
     virtual HttpGet
-    aw_get(std::string_view url) override
+    co_get(std::string_view url) override
     {
         auto [protocol, host, path] = parse_url(url);
 
@@ -198,7 +198,7 @@ void HttpClient::HttpGet::operator()()
 
     // Launch the asynchronous operation
     co_spawn(client->io_ctx(),
-             aw_http_get(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
+             send_http_request(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
              [this](std::exception_ptr eptr, std::string response)
              {
                  if (eptr)
@@ -230,7 +230,7 @@ void HttpClient::HttpPost::operator()()
 
     // Launch the asynchronous operation
     co_spawn(client->io_ctx(),
-             aw_http_get(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
+             send_http_request(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
              [this](std::exception_ptr eptr, std::string response)
              {
                  if (eptr)

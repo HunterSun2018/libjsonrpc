@@ -38,7 +38,7 @@ public:
      * @param url 
      * @return HttpGet 
      */
-    virtual HttpGet aw_get(std::string_view url) = 0;
+    virtual HttpGet co_get(std::string_view url) = 0;
 
     struct HttpPost : public co_helper::Awaitable<std::string, HttpPost>
     {
