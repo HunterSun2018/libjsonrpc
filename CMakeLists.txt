@@ -9,9 +9,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED true)
 # set(CMAKE_C_COMPILER "gcc-10")
 # set(CMAKE_CXX_COMPILER "g++-10")
 # set(CMAKE_LINK_FLAG -static-libgcc)
+# set(CMAKE_CXX_COMPILE_FEATURES -fcoroutines)
 
 include_directories($ENV{HOME}/boost_1_76_0)
-add_definitions(-DBOOST_ASIO_HAS_CO_AWAIT -DBOOST_ASIO_HAS_STD_COROUTINE -fcoroutines)
+add_definitions(-DBOOST_ASIO_HAS_CO_AWAIT -DBOOST_ASIO_HAS_STD_COROUTINE)
 
 aux_source_directory(src SRC)
 
@@ -34,4 +35,4 @@ enable_testing()
 add_test(NAME mytest COMMAND Test)
 
 # mkdir build/release
-# cmake ../.. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=. -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"
+# cmake ../.. -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS=-Wno-nonnull -DCMAKE_INSTALL_PREFIX=. -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc"

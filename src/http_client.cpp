@@ -57,11 +57,9 @@ auto parse_url(std::string_view uri_view)
 }
 
 awaitable<string> send_http_request(
-    string_view host,
-    string_view port,
-    //string_view target,
-    //int version,
-    http::request<http::string_body> req,
+    string host,
+    string port,
+    http::request<http::string_body> request,
     asio::io_context &ioc,
     ssl::context &ctx)
 {
@@ -92,16 +90,11 @@ awaitable<string> send_http_request(
     // Perform the SSL handshake
     co_await stream.async_handshake(ssl::stream_base::client, use_awaitable);
 
-    // Set up an HTTP GET request message
-    // http::request<http::string_body> req{http::verb::get, target.data(), version};
-    // req.set(http::field::host, host.data());
-    // req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-
     // Set the timeout.
     beast::get_lowest_layer(stream).expires_after(expired_time);
 
     // Send the HTTP request to the remote host
-    co_await http::async_write(stream, req, use_awaitable);
+    co_await http::async_write(stream, request, use_awaitable);
 
     // This buffer is used for reading and must be persisted
     beast::flat_buffer buf;
@@ -146,20 +139,10 @@ public:
         _ssl_ctx.set_verify_mode(ssl::verify_none);
     }
 
-    virtual HttpGet
-    co_get(std::string_view url) override
+    virtual Response
+    co_send_request(std::string_view url, RequestType type, std::string_view content_type, std::string_view content) override
     {
-        auto [protocol, host, path] = parse_url(url);
-
-        return HttpGet(*this, host, protocol == "https" ? "443" : "80", path, 11);
-    }
-
-    virtual HttpPost
-    co_post(std::string_view url, std::string_view content_type, std::string_view content) override
-    {
-        auto [protocol, host, path] = parse_url(url);
-
-        return HttpPost(*this, host, protocol == "https" ? "443" : "80", path, 11, content_type, content);
+        return Response(*this, url, type, content_type, content);
     }
 
     void async_run()
@@ -188,58 +171,57 @@ private:
     ssl::context _ssl_ctx{ssl::context::tlsv12_client};
 };
 
-void HttpClient::HttpGet::operator()()
+auto get_request_type(HttpClient::RequestType type)
 {
-    auto client = static_cast<HttpClientImp *>(&_client);
+    switch (type)
+    {
+    case HttpClient::RequestType::Get:
+        return http::verb::get;
+    case HttpClient::RequestType::Post:
+        return http::verb::post;
+    default:
+        __throw_runtime_error("");
+    }
+};
 
-    http::request<http::string_body> req{http::verb::get, _target.data(), _version};
-    req.set(http::field::host, _host.data());
+void HttpClient::Response::operator()()
+{
+    auto [protocol, host, path] = parse_url(_url);
+
+    http::request<http::string_body> req{get_request_type(_type), path, 11};
+    req.set(http::field::host, host);
     req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
 
-    // Launch the asynchronous operation
-    co_spawn(client->io_ctx(),
-             send_http_request(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
-             [this](std::exception_ptr eptr, std::string response)
-             {
-                 if (eptr)
-                 {
-                     std::rethrow_exception(eptr);
-                 }
+    if (!_content_type.empty())
+        req.set(http::field::content_type, string(_content_type));
 
-                 // save response
-                 _value = response;
-
-                 // resume promise type
-                 _co_handle.resume();
-             });
-}
-
-void HttpClient::HttpPost::operator()()
-{
-    auto client = static_cast<HttpClientImp *>(&_client);
-
-    http::request<http::string_body> req{http::verb::post, _target.data(), _version};
-    req.set(http::field::host, _host.data());
-    req.set(http::field::user_agent, BOOST_BEAST_VERSION_STRING);
-    req.set(http::field::content_type, _content_type);
-    req.set(http::field::content_length, to_string(_content.length()));    
-    req.body() = _content;
+    if (!_content.empty())
+    {
+        req.set(http::field::content_length, to_string(_content.length()));
+        req.body() = _content;
+    }
     req.prepare_payload();
 
-    cout << req << endl;
+    auto client = static_cast<HttpClientImp *>(&_client);
+    auto port = protocol == "https" ? "443" : "80";
 
     // Launch the asynchronous operation
     co_spawn(client->io_ctx(),
-             send_http_request(_host, _port, req, client->io_ctx(), client->ssl_ctx()),
+             send_http_request(host, port, req, client->io_ctx(), client->ssl_ctx()),
              [this](std::exception_ptr eptr, std::string response)
              {
-                 if (eptr)
+                 try
                  {
-                     std::rethrow_exception(eptr);
-                 }
+                     if (eptr)
+                         std::rethrow_exception(eptr);
 
-                 // save response
-                 _value = response;
+                     // save response
+                     _value = response;
+                 }
+                 catch (const std::exception &e)
+                 {
+                     std::cerr << e.what() << '\n';
+                 }
 
                  // resume promise type
                  _co_handle.resume();

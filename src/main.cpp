@@ -5,22 +5,12 @@
 
 using namespace std;
 
-co_helper::Task<string>
-test_http_client(http_client_ptr client)
-{
-    string ret = co_await client->co_get("https://cn.bing.com/?mkt=zh-CN"); // /?mkt=zh-CN
-
-    cout << "The http Get request is done. " << endl;
-
-    co_return ret;
-}
-
 co_helper::Task<void>
-test_task_void(http_client_ptr client)
+test_http_get(http_client_ptr client)
 {
-    string ret = co_await client->co_get("https://cn.bing.com/");
+    string ret = co_await client->co_send_request("https://cn.bing.com/");  //https://cn.bing.com/?mkt=zh-CN
 
-    cout << " http get response : " << ret << endl;
+    cout << "Http get response : " <<  endl;
 
     co_return;
 }
@@ -35,29 +25,36 @@ test_task_void(http_client_ptr client)
 co_helper::Task<string>
 test_http_post(http_client_ptr client)
 {
-    string response = co_await client->co_post("https://client.testnet.diem.com/", "application/json", R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
-    
-    cout << " http post response : " << response << endl;
+    // string response = co_await client->co_post("https://client.testnet.diem.com/", "application/json", R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
+
+    string response = co_await client->co_send_request("https://client.testnet.diem.com/",
+                                                       HttpClient::RequestType::Post,
+                                                       "application/json",
+                                                       R"([{"jsonrpc":"2.0","method":"get_metadata","params":[1],"id":1},{"jsonrpc":"2.0","method":"get_metadata","params":[9],"id":2}])");
+
+    cout << "Http post response : " << response << endl;
 
     co_return response;
 }
 
-void test()
+std::future<void> test()
 {
     auto client = HttpClient::create();
 
-    // test_task_void(client);
-
-    // auto ret = test_http_client(client);
+    test_http_get(client);
+    cout << "run http get" << endl;
 
     auto ret = test_http_post(client);
-
+    cout << "run http post" << endl;
+    
     // client->async_run();
     // getchar();
 
     client->sync_run();
 
-    cout << "test finished." << endl;
+    cout << "exit finished." << endl;
+
+    co_return;
 }
 
 // Utilize the infrastructure we have established.
@@ -87,8 +84,9 @@ int main(int argc, char *argv[])
         jr_client.call(1, "get_metadata", 1);
 
         test();
+        cout << "finished test" << endl;
 
-        fail().get();
+        //fail().get();
     }
     catch (const std::exception &e)
     {

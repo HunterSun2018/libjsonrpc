@@ -18,42 +18,23 @@ public:
 
     virtual void sync_run() = 0;
 
-    struct HttpGet : public co_helper::Awaitable<std::string, HttpGet>
+    enum RequestType
     {
-        HttpGet(HttpClient &client, std::string_view host, std::string_view port, std::string_view target, int version)
-            : _client(client), _host(host), _port(port), _target(target), _version(version)
-        {
-        }
-
-        void operator()();
-
-    private:
-        HttpClient &_client;
-        std::string _host, _port, _target;
-        int _version;
+        Get,
+        Post,
     };
-    /**
-     * @brief awaitable Http Get request
-     * 
-     * @param url 
-     * @return HttpGet 
-     */
-    virtual HttpGet co_get(std::string_view url) = 0;
 
-    struct HttpPost : public co_helper::Awaitable<std::string, HttpPost>
+    //template <typename T>
+    struct Response : public co_helper::Awaitable<std::string, Response>
     {
-        HttpPost(HttpClient &client,
-                 std::string_view host,
-                 std::string_view port,
-                 std::string_view target,
-                 int version,
+        Response(HttpClient &client,
+                 std::string_view url,
+                 RequestType type,
                  std::string_view content_type,
                  std::string_view content)
             : _client(client),
-              _host(host),
-              _port(port),
-              _target(target),
-              _version(version),
+              _url(url),
+              _type(type),
               _content_type(content_type),
               _content(content)
         {
@@ -63,20 +44,14 @@ public:
 
     private:
         HttpClient &_client;
-        std::string _host, _port, _target;
-        int _version;
-        std::string _content_type;
-        std::string _content;
+        RequestType _type;
+        std::string _url, _content_type, _content;
     };
 
-    /**
-     * @brief Http Post request by co_await
-     * 
-     * @param url 
-     * @param content 
-     * @return HttpPost 
-     */
-    virtual HttpPost co_post(std::string_view url, std::string_view content_type, std::string_view content) = 0;
+    virtual Response co_send_request(std::string_view url,
+                                     RequestType type = RequestType::Get,
+                                     std::string_view content_type = "",
+                                     std::string_view content = "") = 0;
 };
 
 using http_client_ptr = std::shared_ptr<HttpClient>;
